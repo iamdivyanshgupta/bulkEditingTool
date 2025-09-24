@@ -1,7 +1,11 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import os
-from PIL import Image
+from PIL import Image, ImageOps
+import numpy as np
+import sys
+
+print(f"Running with Python executable: {sys.executable}")
 
 app = Flask(__name__)
 CORS(app)  # Allow requests from frontend
@@ -68,7 +72,9 @@ def grayscale_image():
         return jsonify({'error': 'Original file not found'}), 404
 
     try:
-        img = Image.open(original_filepath).convert('RGB') # Ensure image is in RGB mode
+        img = Image.open(original_filepath)
+        img = ImageOps.exif_transpose(img) # Correct orientation
+        img = img.convert('RGB') # Ensure image is in RGB mode
         grayscale_img = img.convert('L') # Convert to grayscale
 
         # Create a new filename for the grayscale image
@@ -80,6 +86,64 @@ def grayscale_image():
 
         return jsonify({'message': 'Image grayscaled successfully', 'filename': grayscale_filename}), 200
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analyze/<filename>', methods=['GET'])
+def analyze_image(filename):
+    original_filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(original_filepath):
+        return jsonify({'error': 'File not found'}), 404
+
+    try:
+        img = Image.open(original_filepath)
+        img = ImageOps.exif_transpose(img) # Correct orientation
+        img_gray = img.convert('L') # Convert to grayscale for analysis
+
+        # Convert image to numpy array for calculations
+        import numpy as np
+        img_array = np.array(img_gray)
+
+        # Basic Brightness Analysis (mean pixel value)
+        brightness = np.mean(img_array)
+        brightness_recommendation = ""
+        if brightness < 70:
+            brightness_recommendation = "Image might be underexposed. Consider increasing brightness."
+        elif brightness > 180:
+            brightness_recommendation = "Image might be overexposed. Consider decreasing brightness."
+        else:
+            brightness_recommendation = "Brightness seems balanced."
+
+        # Basic Contrast Analysis (standard deviation of pixel values)
+        contrast = np.std(img_array)
+        contrast_recommendation = ""
+        if contrast < 30:
+            contrast_recommendation = "Image might lack contrast. Consider increasing contrast."
+        elif contrast > 80:
+            contrast_recommendation = "Image has good contrast."
+        else:
+            contrast_recommendation = "Contrast seems balanced."
+
+        # Color Vibrancy Analysis (standard deviation of saturation channel)
+        img_hsv = img.convert('HSV')
+        hsv_array = np.array(img_hsv)
+        saturation = hsv_array[:,:,1] # Saturation channel
+        vibrancy = np.std(saturation)
+        vibrancy_recommendation = ""
+        if vibrancy < 50:
+            vibrancy_recommendation = "Image might lack color vibrancy. Consider increasing saturation."
+        elif vibrancy > 100:
+            vibrancy_recommendation = "Image has good color vibrancy."
+        else:
+            vibrancy_recommendation = "Color vibrancy seems balanced."
+
+        recommendations = []
+        if brightness_recommendation: recommendations.append(brightness_recommendation)
+        if contrast_recommendation: recommendations.append(contrast_recommendation)
+        if vibrancy_recommendation: recommendations.append(vibrancy_recommendation)
+
+        return jsonify({'filename': filename, 'recommendations': recommendations}), 200
+    except Exception as e:
+        print(f"Error during image analysis: {e}") # Print the actual error
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

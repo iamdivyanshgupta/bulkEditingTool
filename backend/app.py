@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import os
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance
 import numpy as np
 import sys
 
@@ -59,34 +59,64 @@ def list_images():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/edit/grayscale', methods=['POST'])
-def grayscale_image():
+def get_image_path(filename):
+    # Check for the image in both edited and upload folders
+    for folder in [EDITED_FOLDER, UPLOAD_FOLDER]:
+        filepath = os.path.join(folder, filename)
+        if os.path.exists(filepath):
+            return filepath
+    return None
+
+def get_new_edited_filename(filename, suffix):
+    import time
+    timestamp = int(time.time() * 1000)
+    name, ext = os.path.splitext(filename)
+    # Strip existing suffixes to prevent infinitely long names
+    name = name.split('_')[0]
+    return f"{name}_{suffix}_{timestamp}{ext}"
+
+@app.route('/api/edit/apply-all', methods=['POST'])
+def apply_all_edits():
     data = request.get_json()
     filename = data.get('filename')
+    edits = data.get('edits', {})
 
     if not filename:
         return jsonify({'error': 'Filename not provided'}), 400
 
-    original_filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    if not os.path.exists(original_filepath):
-        return jsonify({'error': 'Original file not found'}), 404
+    filepath = get_image_path(filename)
+    if not filepath:
+        return jsonify({'error': 'File not found'}), 404
 
     try:
-        img = Image.open(original_filepath)
-        img = ImageOps.exif_transpose(img) # Correct orientation
-        img = img.convert('RGB') # Ensure image is in RGB mode
-        grayscale_img = img.convert('L') # Convert to grayscale
+        img = Image.open(filepath)
+        img = ImageOps.exif_transpose(img)
+        img = img.convert('RGB')
 
-        # Create a new filename for the grayscale image
-        name, ext = os.path.splitext(filename)
-        grayscale_filename = f"{name}_grayscale{ext}"
-        grayscale_filepath = os.path.join(EDITED_FOLDER, grayscale_filename)
+        if 'brightness' in edits:
+            enhancer = ImageEnhance.Brightness(img)
+            img = enhancer.enhance(edits['brightness'])
+        
+        if 'contrast' in edits:
+            enhancer = ImageEnhance.Contrast(img)
+            img = enhancer.enhance(edits['contrast'])
 
-        grayscale_img.save(grayscale_filepath)
+        if 'grayscale' in edits and edits['grayscale'] > 0:
+            img = img.convert('L').convert('RGB') # convert to grayscale and back to RGB
 
-        return jsonify({'message': 'Image grayscaled successfully', 'filename': grayscale_filename}), 200
+        # Note: Vibrancy is not a standard CSS filter, so we use Color enhancement from Pillow.
+        # The frontend will need to handle this separately if it uses a vibrancy slider.
+
+        new_filename = get_new_edited_filename(filename, 'edited')
+        new_filepath = os.path.join(EDITED_FOLDER, new_filename)
+
+        img.save(new_filepath)
+
+        return jsonify({'message': 'Edits applied successfully', 'filename': new_filename}), 200
     except Exception as e:
+        print(f"Error applying edits: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/analyze/<filename>', methods=['GET'])
 def analyze_image(filename):

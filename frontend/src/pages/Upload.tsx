@@ -4,7 +4,6 @@ import axios from "axios";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import type { DropResult } from "react-beautiful-dnd";
 
-
 interface UploadedImage {
   file: File;
   preview: string;
@@ -92,32 +91,35 @@ export default function Upload() {
       {/* Drag & Drop Area */}
       <div
         {...getRootProps()}
-        className="border-2 border-dashed border-gray-400 rounded-lg p-6 md:p-8 mb-6 text-center cursor-pointer hover:bg-gray-50 transition"
+        className="border-2 border-dashed border-gray-300 rounded-xl p-8 mb-6 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all duration-300 ease-in-out shadow-sm hover:shadow-md"
       >
         <input {...getInputProps()} />
-        <p className="text-gray-600 text-sm md:text-base">
-          Drag & drop images here, or click to select files
+        <p className="text-gray-500 text-lg font-medium mb-2">
+          Drag & drop your images here, or click to select files
         </p>
+        <p className="text-gray-400 text-sm">(Supports JPG, PNG, GIF, etc.)</p>
       </div>
 
       {/* Upload All Button */}
-      <div className="flex justify-center md:justify-start mb-4">
+      <div className="flex justify-center md:justify-start mb-6">
         <button
           onClick={uploadAll}
           disabled={images.length === 0}
-          className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 disabled:opacity-50 transition"
+          className="bg-blue-600 text-white px-8 py-3 rounded-lg text-lg font-semibold shadow-md hover:bg-blue-700 disabled:opacity-50 transition-all duration-300 ease-in-out"
         >
-          Upload All
+          Upload All ({images.length})
         </button>
       </div>
 
       {/* Total Progress Bar */}
       {images.length > 0 && (
-        <div className="w-full h-3 bg-gray-200 rounded mb-6">
+        <div className="w-full h-4 bg-gray-200 rounded-full mb-6 overflow-hidden shadow-inner">
           <div
-            className="h-3 bg-green-500 rounded transition-all"
+            className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-300 ease-in-out flex items-center justify-center text-white text-xs font-bold"
             style={{ width: `${totalProgress}%` }}
-          />
+          >
+            {totalProgress > 0 && `${totalProgress}%`}
+          </div>
         </div>
       )}
 
@@ -126,15 +128,15 @@ export default function Upload() {
         <Droppable droppableId="images" direction="horizontal">
           {(provided) => (
             <div
-              className="flex flex-wrap gap-4"
+              className="flex flex-wrap gap-4 justify-center md:justify-start"
               {...provided.droppableProps}
               ref={provided.innerRef}
             >
               {images.map((img, idx) => (
-                <Draggable key={idx} draggableId={idx.toString()} index={idx}>
+                <Draggable key={img.file.name} draggableId={img.file.name} index={idx}>
                   {(provided) => (
                     <div
-                      className="relative w-36 h-36"
+                      className="relative w-40 h-40 bg-white rounded-lg shadow-lg overflow-hidden group transform hover:scale-105 transition-all duration-200 ease-in-out"
                       ref={provided.innerRef}
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
@@ -142,31 +144,34 @@ export default function Upload() {
                       <img
                         src={img.preview}
                         alt={img.file.name}
-                        className="w-full h-full object-cover rounded"
+                        className="w-full h-full object-cover rounded-lg"
                       />
 
                       {/* Remove Button */}
                       <button
                         onClick={() => removeImage(idx)}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out z-10 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
                       >
                         ×
                       </button>
 
                       {/* Individual Progress Bar */}
-                      {!img.uploaded && (
-                        <div
-                          className="absolute bottom-0 left-0 h-1 bg-blue-500 rounded transition-all"
-                          style={{ width: `${img.progress}%` }}
-                        />
+                      {!img.uploaded && img.progress > 0 && (
+                        <div className="absolute bottom-0 left-0 right-0 h-2 bg-gray-200">
+                          <div
+                            className="h-full bg-blue-500 transition-all duration-200 ease-in-out"
+                            style={{ width: `${img.progress}%` }}
+                          ></div>
+                        </div>
                       )}
 
-                      {/* Uploaded Checkmark */}
-                      {img.uploaded && (
-                        <span className="absolute top-0 left-0 bg-green-500 text-white px-1 text-xs rounded">
-                          ✅
-                        </span>
-                      )}
+                      {/* Uploaded Checkmark or Filename */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs p-1 truncate flex items-center justify-between">
+                        <span className="flex-grow truncate">{img.file.name}</span>
+                        {img.uploaded && (
+                          <span className="ml-1 text-green-400">✅</span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </Draggable>
